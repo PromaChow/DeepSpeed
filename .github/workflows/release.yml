@@ -40,41 +40,41 @@ jobs:
           json-output: true
           label: Build DeepSpeed
           task: get-measurement
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          repository-url: https://upload.pypi.org/legacy/
-      - name: Bump version
-        run: 'python release/bump_patch_version.py --current_version ${{ env.RELEASE_VERSION
-          }}
+      # - name: Publish to PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     password: ${{ secrets.PYPI_API_TOKEN }}
+      #     repository-url: https://upload.pypi.org/legacy/
+      # - name: Bump version
+      #   run: 'python release/bump_patch_version.py --current_version ${{ env.RELEASE_VERSION
+      #     }}
 
-          '
-      - id: measurement-11
-        name: Record Measurement After Bump version
-        uses: green-coding-solutions/eco-ci-energy-estimation@v4
-        with:
-          json-output: true
-          label: Bump version
-          task: get-measurement
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
-        with:
-          add-paths: 'version.txt
+      #     '
+      # - id: measurement-11
+      #   name: Record Measurement After Bump version
+      #   uses: green-coding-solutions/eco-ci-energy-estimation@v4
+      #   with:
+      #     json-output: true
+      #     label: Bump version
+      #     task: get-measurement
+      # - name: Create Pull Request
+      #   uses: peter-evans/create-pull-request@v6
+      #   with:
+      #     add-paths: 'version.txt
 
-            '
-          assignees: ${{ github.actor }}
-          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-          body: '**Auto-generated PR to update version.txt after a DeepSpeed release**
+      #       '
+      #     assignees: ${{ github.actor }}
+      #     author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+      #     body: '**Auto-generated PR to update version.txt after a DeepSpeed release**
 
-            Released version - ${{ env.RELEASE_VERSION }}
+      #       Released version - ${{ env.RELEASE_VERSION }}
 
-            Author           - @${{ github.actor }}
+      #       Author           - @${{ github.actor }}
 
-            '
-          branch: AutoPR/${{ env.RELEASE_VERSION }}
-          title: Update version.txt after ${{ env.RELEASE_VERSION }} release
-          token: ${{ secrets.GH_PAT }}
+      #       '
+      #     branch: AutoPR/${{ env.RELEASE_VERSION }}
+      #     title: Update version.txt after ${{ env.RELEASE_VERSION }} release
+      #     token: ${{ secrets.GH_PAT }}
       - id: display-measurement
         name: Display Energy Results
         uses: green-coding-solutions/eco-ci-energy-estimation@v4
