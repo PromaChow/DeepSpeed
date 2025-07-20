@@ -1,42 +1,76 @@
 name: nv-pre-compile-ops
-
 on:
-  workflow_dispatch:
-  pull_request:
+  push:
     branches:
-      '**'
-    paths-ignore:
-      - 'docs/**'
-      - 'blogs/**'
-      - 'deepspeed/inference/v2/**'
-      - 'tests/unit/inference/v2/**'
-  merge_group:
-    branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: ubuntu-24.04
     container:
       image: deepspeed/gh-builder:ubuntu1804-py38-torch1131-cu116
-
+    runs-on: ubuntu-24.04
     steps:
-        - uses: actions/checkout@v4
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+      - name: environment
+        run: 'which python
 
-        - name: environment
-          run: |
-            which python
-            python --version
-            python -c "import torch; print('torch:', torch.__version__, torch)"
-            #python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
-        - name: Compile DeepSpeed Ops
-          run: |
-            DS_ACCELERATOR=cuda DS_ENABLE_NINJA=1 TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0" DS_BUILD_OPS=1 DS_BUILD_SPARSE_ATTN=0 DS_BUILD_FP_QUANTIZER=0 DS_BUILD_CUTLASS_OPS=0 DS_BUILD_GDS=0 DS_BUILD_RAGGED_DEVICE_OPS=0 DS_BUILD_EVOFORMER_ATTN=0 pip3 install .
-        - name: DS Report
-          run: |
-             ds_report
+          python --version
+
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          #python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-3
+        name: Record Measurement After environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: environment
+          task: get-measurement
+      - name: Compile DeepSpeed Ops
+        run: 'DS_ACCELERATOR=cuda DS_ENABLE_NINJA=1 TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0"
+          DS_BUILD_OPS=1 DS_BUILD_SPARSE_ATTN=0 DS_BUILD_FP_QUANTIZER=0 DS_BUILD_CUTLASS_OPS=0
+          DS_BUILD_GDS=0 DS_BUILD_RAGGED_DEVICE_OPS=0 DS_BUILD_EVOFORMER_ATTN=0 pip3
+          install .
+
+          '
+      - id: measurement-5
+        name: Record Measurement After Compile DeepSpeed Ops
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Compile DeepSpeed Ops
+          task: get-measurement
+      - name: DS Report
+        run: 'ds_report
+
+          '
+      - id: measurement-7
+        name: Record Measurement After DS Report
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: DS Report
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

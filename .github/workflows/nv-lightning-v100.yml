@@ -1,51 +1,97 @@
 name: nv-lightning-v100
-
 on:
-  workflow_dispatch:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'blogs/**'
-      - 'deepspeed/inference/v2/**'
-      - 'tests/unit/inference/v2/**'
-  merge_group:
-    branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: [self-hosted, nvidia, cu124, v100]
-
+    runs-on:
+      - self-hosted
+      - nvidia
+      - cu124
+      - v100
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-
       - name: Install pytorch
-        run: |
-          pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url https://download.pytorch.org/whl/cu124
-          python -c "import torch; print('torch:', torch.__version__, torch)"
-          python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+        run: 'pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url
+          https://download.pytorch.org/whl/cu124
 
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-4
+        name: Record Measurement After Install pytorch
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install pytorch
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          pip install .[dev,autotuning]
+        run: 'pip install .[dev,autotuning]
+
           ds_report
 
+          '
+      - id: measurement-6
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment
-        run: |
-          pip list
+        run: 'pip list
 
+          '
+      - id: measurement-8
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
       - name: PyTorch Lightning Tests
-        run: |
-          unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+        run: 'unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+
           pip install pytorch-lightning
+
           pip install "protobuf<4.21.0"
+
           cd tests
+
           pytest $PYTEST_OPTS lightning/
+
+          '
+      - id: measurement-10
+        name: Record Measurement After PyTorch Lightning Tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: PyTorch Lightning Tests
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

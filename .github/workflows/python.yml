@@ -1,43 +1,76 @@
 name: python
-
 on:
-  workflow_dispatch:
-  pull_request:
+  push:
     branches:
-      '**'
-    paths-ignore:
-      - 'docs/**'
-      - 'blogs/**'
-  merge_group:
-    branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    strategy:
-      matrix:
-        pyVersion: ["3.8", "3.9", "3.10"]
-      fail-fast: false
-
-    runs-on: ubuntu-24.04
     container:
       image: deepspeed/gh-builder:py${{ matrix.pyVersion }}
-
+    runs-on: ubuntu-24.04
     steps:
-        - uses: actions/checkout@v4
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+      - name: environment
+        run: 'which python
 
-        - name: environment
-          run: |
-            which python
-            python --version
-        - name: Install deepspeed
-          run: |
-            pip3 install .
-        - name: DS Report
-          run: |
-             ds_report
+          python --version
+
+          '
+      - id: measurement-3
+        name: Record Measurement After environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: environment
+          task: get-measurement
+      - name: Install deepspeed
+        run: 'pip3 install .
+
+          '
+      - id: measurement-5
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
+      - name: DS Report
+        run: 'ds_report
+
+          '
+      - id: measurement-7
+        name: Record Measurement After DS Report
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: DS Report
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
+    strategy:
+      fail-fast: false
+      matrix:
+        pyVersion:
+          - '3.8'
+          - '3.9'
+          - '3.10'

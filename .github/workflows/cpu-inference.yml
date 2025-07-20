@@ -1,103 +1,211 @@
 name: cpu-inference
-
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/cpu-inference.yml'
-      - 'requirements/**'
-      - 'deepspeed/__init__.py'
-      - 'deepspeed/inference/**'
-      - '!deepspeed/inference/v2/**' # exclude v2 dir
-      - 'tests/unit/inference/**'
-      - '!tests/unit/inference/v2/**' # exclude v2 tests dir
-  merge_group:
-    branches: [ master ]
-  schedule:
-        - cron: "0 0 * * 0"
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: [self-hosted, cpu]
-
-    env: {ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true} # Allow using Node16 actions
-
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    runs-on:
+      - self-hosted
+      - cpu
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-
       - name: Install gcc-9
-        run: |
-          sudo add-apt-repository -u ppa:ubuntu-toolchain-r/test
+        run: 'sudo add-apt-repository -u ppa:ubuntu-toolchain-r/test
+
           sudo apt install -y gcc-9 g++-9
+
           # set gcc-9 and g++9 to default
+
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 99
+
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 99
 
+          '
+      - id: measurement-4
+        name: Record Measurement After Install gcc-9
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install gcc-9
+          task: get-measurement
       - name: Check gcc version
-        run: |
-          # Get gcc version
+        run: '# Get gcc version
+
           gcc --version
+
           g++ --version
 
+          '
+      - id: measurement-6
+        name: Record Measurement After Check gcc version
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Check gcc version
+          task: get-measurement
       - name: Detect instruction sets on instance
-        run: |
-          lscpu
+        run: 'lscpu
 
+          '
+      - id: measurement-8
+        name: Record Measurement After Detect instruction sets on instance
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Detect instruction sets on instance
+          task: get-measurement
       - name: Install numactl
-        run: |
-          sudo apt-get install -y numactl
+        run: 'sudo apt-get install -y numactl
 
+          '
+      - id: measurement-10
+        name: Record Measurement After Install numactl
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install numactl
+          task: get-measurement
       - name: Install dependencies
-        run: |
-          pip install torch
+        run: 'pip install torch
+
           # check installed version
+
           pip list |grep \\\<torch\\\>
 
+          '
+      - id: measurement-12
+        name: Record Measurement After Install dependencies
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install dependencies
+          task: get-measurement
       - name: Install oneCCL
-        run: |
-          pip install cmake
+        run: 'pip install cmake
+
           git clone https://github.com/oneapi-src/oneCCL
+
           cd oneCCL
+
           mkdir build
+
           cd build
+
           cmake ..
+
           make -j install
 
+          '
+      - id: measurement-14
+        name: Record Measurement After Install oneCCL
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install oneCCL
+          task: get-measurement
       - name: Install transformers
-        run: |
-          git clone https://github.com/huggingface/transformers
+        run: 'git clone https://github.com/huggingface/transformers
+
           cd transformers
+
           git rev-parse --short HEAD
+
           pip install .
 
+          '
+      - id: measurement-16
+        name: Record Measurement After Install transformers
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install transformers
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          # check why the host does not have AVX2 support
+        run: '# check why the host does not have AVX2 support
+
           pip install .[dev,1bit,autotuning,inf]
+
           ds_report
 
+          '
+      - id: measurement-18
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment check
-        run: |
-          pip list
+        run: 'pip list
+
           source oneCCL/build/_install/env/setvars.sh
+
           export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6
+
           # check whether the environment is properly setup
+
           python -c "import deepspeed;from deepspeed.accelerator import get_accelerator;print(get_accelerator().device_name());print(get_accelerator().is_available())"
 
+          '
+      - id: measurement-20
+        name: Record Measurement After Python environment check
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment check
+          task: get-measurement
       - name: Unit tests
-        run: |
-          # prep oneCCL for CCLBackend comm ops building
+        run: '# prep oneCCL for CCLBackend comm ops building
+
           source oneCCL/build/_install/env/setvars.sh
+
           export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6
+
           unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+
           cd  tests
-          # LOCAL_SIZE=2 enforce CPU to report 2 devices, this helps run the test on github default runner
-          LOCAL_SIZE=2 COLUMNS=240 HF_HOME=~/tmp/hf_home/ TORCH_EXTENSIONS_DIR=./torch-extensions pytest -m 'seq_inference' unit/
-          LOCAL_SIZE=2 COLUMNS=240 HF_HOME=~/tmp/hf_home/ TORCH_EXTENSIONS_DIR=./torch-extensions pytest -m 'inference_ops' -m 'inference' unit/
+
+          # LOCAL_SIZE=2 enforce CPU to report 2 devices, this helps run the test
+          on github default runner
+
+          LOCAL_SIZE=2 COLUMNS=240 HF_HOME=~/tmp/hf_home/ TORCH_EXTENSIONS_DIR=./torch-extensions
+          pytest -m ''seq_inference'' unit/
+
+          LOCAL_SIZE=2 COLUMNS=240 HF_HOME=~/tmp/hf_home/ TORCH_EXTENSIONS_DIR=./torch-extensions
+          pytest -m ''inference_ops'' -m ''inference'' unit/
+
+          '
+      - id: measurement-22
+        name: Record Measurement After Unit tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Unit tests
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

@@ -1,48 +1,71 @@
 name: no-torch
-
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - 'accelerator/**'
-      - '.github/workflows/no-torch.yml'
-      - 'op_builder/**'
-  schedule:
-    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-permissions:
-    contents: read
-    issues: write
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
     runs-on: ubuntu-24.04
-
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-
       - name: Python environment
-        run: |
-          pip uninstall torch --yes
+        run: 'pip uninstall torch --yes
+
           pip install setuptools
+
           pip list
 
+          '
+      - id: measurement-4
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
       - name: Build deepspeed
-        run: |
-          DS_BUILD_STRING=" " python setup.py sdist
+        run: 'DS_BUILD_STRING=" " python setup.py sdist
 
-      - name: Open GitHub issue if nightly CI fails
-        if: ${{ failure() && (github.event_name == 'schedule') }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
+          '
+      - id: measurement-6
+        name: Record Measurement After Build deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Build deepspeed
+          task: get-measurement
+      - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ failure() && (github.event_name == 'schedule') }}
+        name: Open GitHub issue if nightly CI fails
+        uses: JasonEtco/create-an-issue@v2
         with:
           filename: .github/ISSUE_TEMPLATE/ci_failure_report.md
           update_existing: true
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
+permissions:
+  contents: read
+  issues: write

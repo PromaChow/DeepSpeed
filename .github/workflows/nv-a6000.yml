@@ -1,74 +1,141 @@
 name: nv-a6000
-
 on:
-  pull_request:
-    paths:
-      - 'accelerator/cuda_accelerator.py'
-      - 'deepspeed/inference/v2/**'
-      - 'tests/unit/inference/v2/**'
-      - '.github/workflows/nv-a6000.yml'
-  workflow_dispatch:
-    inputs:
-      mii_branch:
-        description: 'DeepSpeed-MII Branch'
-        required: false
-        default: 'main'
-        type: string
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: [self-hosted, nvidia, a6000]
     container:
       image: nvcr.io/nvidia/pytorch:24.09-py3
+      options: --gpus all --shm-size "8G"
       ports:
         - 80
-      options: --gpus all --shm-size "8G"
-
+    runs-on:
+      - self-hosted
+      - nvidia
+      - a6000
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - name: Check container state
-        run: |
-          ldd --version
+        run: 'ldd --version
+
           nvcc --version
+
           nvidia-smi
-          python -c "import torch; print('torch:', torch.__version__, torch)"
-          python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-3
+        name: Record Measurement After Check container state
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Check container state
+          task: get-measurement
       - name: Install transformers
-        run: |
-          git clone https://github.com/huggingface/transformers
+        run: 'git clone https://github.com/huggingface/transformers
+
           cd transformers
-          # if you need to use an older transformers version temporarily in case of breakage
+
+          # if you need to use an older transformers version temporarily in case of
+          breakage
+
           # git checkout v4.47.1
+
           git rev-parse --short HEAD
+
           python -m pip install .
+
+          '
+      - id: measurement-5
+        name: Record Measurement After Install transformers
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install transformers
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          python -m pip install docutils==0.18.1 jinja2==3.0 urllib3==1.26.11 ninja
+        run: 'python -m pip install docutils==0.18.1 jinja2==3.0 urllib3==1.26.11
+          ninja
+
           python -m pip install .[dev,1bit,autotuning,inf]
+
           ds_report
+
+          '
+      - id: measurement-7
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment
-        run: |
-          python -m pip list
+        run: 'python -m pip list
+
+          '
+      - id: measurement-9
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
       - name: Unit tests
-        run: |
-          unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+        run: 'unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+
           cd tests
-          python -m pytest --color=yes --durations=0 --verbose -rF -m 'inference_v2' unit/ --torch_ver="2.5" --cuda_ver="12"
-          python -m pytest --color=yes --durations=0 --verbose -rF -m 'inference_v2_ops' unit/ --torch_ver="2.5" --cuda_ver="12"
+
+          python -m pytest --color=yes --durations=0 --verbose -rF -m ''inference_v2''
+          unit/ --torch_ver="2.5" --cuda_ver="12"
+
+          python -m pytest --color=yes --durations=0 --verbose -rF -m ''inference_v2_ops''
+          unit/ --torch_ver="2.5" --cuda_ver="12"
+
+          '
+      - id: measurement-11
+        name: Record Measurement After Unit tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Unit tests
+          task: get-measurement
       - name: MII unit tests
-        run: |
-          BRANCH="main"
-          if [[ ! -z "${{ github.event.inputs.mii_branch }}" ]]; then
-              BRANCH="${{ github.event.inputs.mii_branch }}"
-          fi
-          echo "Cloning DeepSpeed-MII branch: $BRANCH"
-          git clone -b $BRANCH --depth=1 https://github.com/deepspeedai/DeepSpeed-MII.git
-          cd DeepSpeed-MII
-          pip install .[dev]
-          cd tests
-          python -m pytest --color=yes --durations=0 --verbose -rF ./
+        run: "BRANCH=\"main\"\nif [[ ! -z \"${{ github.event.inputs.mii_branch }}\"\
+          \ ]]; then\n    BRANCH=\"${{ github.event.inputs.mii_branch }}\"\nfi\necho\
+          \ \"Cloning DeepSpeed-MII branch: $BRANCH\"\ngit clone -b $BRANCH --depth=1\
+          \ https://github.com/deepspeedai/DeepSpeed-MII.git\ncd DeepSpeed-MII\npip\
+          \ install .[dev]\ncd tests\npython -m pytest --color=yes --durations=0 --verbose\
+          \ -rF ./\n"
+      - id: measurement-13
+        name: Record Measurement After MII unit tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: MII unit tests
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

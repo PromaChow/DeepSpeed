@@ -1,53 +1,135 @@
 name: nv-human-eval
-
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: [self-hosted, nvidia, a6000]
     container:
       image: nvcr.io/nvidia/pytorch:24.09-py3
+      options: --gpus all --shm-size "8G"
       ports:
         - 80
-      options: --gpus all --shm-size "8G"
-
+    runs-on:
+      - self-hosted
+      - nvidia
+      - a6000
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - name: Check container state
-        run: |
-          ldd --version
+        run: 'ldd --version
+
           nvcc --version
+
           nvidia-smi
-          python -c "import torch; print('torch:', torch.__version__, torch)"
-          python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-3
+        name: Record Measurement After Check container state
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Check container state
+          task: get-measurement
       - name: Install transformers
-        run: |
-          git clone --depth=1 https://github.com/huggingface/transformers
+        run: 'git clone --depth=1 https://github.com/huggingface/transformers
+
           cd transformers
+
           git rev-parse --short HEAD
+
           python -m pip install .
+
+          '
+      - id: measurement-5
+        name: Record Measurement After Install transformers
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install transformers
+          task: get-measurement
       - name: Clone Human Eval
-        run: |
-          git clone --depth=1 https://github.com/openai/human-eval.git
-          sed -i '/exec(check_program, exec_globals)/ s/^# //' human-eval/human_eval/execution.py
+        run: 'git clone --depth=1 https://github.com/openai/human-eval.git
+
+          sed -i ''/exec(check_program, exec_globals)/ s/^# //'' human-eval/human_eval/execution.py
+
           cd human-eval
+
           git rev-parse --short HEAD
+
           python -m pip install .
+
+          '
+      - id: measurement-7
+        name: Record Measurement After Clone Human Eval
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Clone Human Eval
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          python -m pip install .[dev,1bit,autotuning]
+        run: 'python -m pip install .[dev,1bit,autotuning]
+
           ds_report
+
+          '
+      - id: measurement-9
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment
-        run: |
-          python -m pip list
+        run: 'python -m pip list
+
+          '
+      - id: measurement-11
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
       - name: Unit tests
-        run: |
-          unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+        run: 'unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+
           cd tests
-          python -m pytest --color=yes --durations=0 --verbose -rF -m 'evaluation' -k "test_human_eval" unit/ --torch_ver="2.5" --cuda_ver="12"
+
+          python -m pytest --color=yes --durations=0 --verbose -rF -m ''evaluation''
+          -k "test_human_eval" unit/ --torch_ver="2.5" --cuda_ver="12"
+
+          '
+      - id: measurement-13
+        name: Record Measurement After Unit tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Unit tests
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

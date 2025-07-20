@@ -1,40 +1,75 @@
 name: Formatting
-
 on:
-  workflow_dispatch:
-  pull_request:
+  push:
     branches:
-      '**'
-  merge_group:
-    branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
-
-  # formatting and basic install on cpu-only machine
   unit-tests:
     runs-on: ubuntu-22.04
-
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - name: environment
-        run: |
-          which python
+        run: 'which python
+
           python --version
 
+          '
+      - id: measurement-3
+        name: Record Measurement After environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: environment
+          task: get-measurement
       - name: Install dependencies
-        run: |
-          # Previously we would do pip install .[dev] but this is causing out of
-          # space errors start with torch 2.1.0 release
-          grep -E "clang-format|pre-commit" requirements/requirements-dev.txt | xargs pip install
+        run: '# Previously we would do pip install .[dev] but this is causing out
+          of
 
+          # space errors start with torch 2.1.0 release
+
+          grep -E "clang-format|pre-commit" requirements/requirements-dev.txt | xargs
+          pip install
+
+          '
+      - id: measurement-5
+        name: Record Measurement After Install dependencies
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install dependencies
+          task: get-measurement
       - name: Formatting checks
-        run: |
-          pip show pre-commit clang-format
+        run: 'pip show pre-commit clang-format
+
           pre-commit run --all-files
+
+          '
+      - id: measurement-7
+        name: Record Measurement After Formatting checks
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Formatting checks
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

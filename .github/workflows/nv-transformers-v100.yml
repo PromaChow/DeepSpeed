@@ -1,64 +1,129 @@
 name: nv-transformers-v100
-
 on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'blogs/**'
-      - 'deepspeed/inference/v2/**'
-      - 'tests/unit/inference/v2/**'
-  merge_group:
-    branches: [ master ]
-  schedule:
-    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   unit-tests:
-    runs-on: [self-hosted, nvidia, cu124, v100]
-
+    runs-on:
+      - self-hosted
+      - nvidia
+      - cu124
+      - v100
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-
       - name: Install pytorch
-        run: |
-          # use the same pytorch version as transformers CI
-          pip install -U --cache-dir $TORCH_CACHE torch==2.0.1+cu124 --index-url https://download.pytorch.org/whl/cu124
-          python -c "import torch; print('torch:', torch.__version__, torch)"
-          python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+        run: '# use the same pytorch version as transformers CI
 
+          pip install -U --cache-dir $TORCH_CACHE torch==2.0.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-4
+        name: Record Measurement After Install pytorch
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install pytorch
+          task: get-measurement
       - name: Install transformers
-        run: |
-          git clone https://github.com/huggingface/transformers
+        run: 'git clone https://github.com/huggingface/transformers
+
           cd transformers
-          # if needed switch to the last known good SHA until transformers@master is fixed
+
+          # if needed switch to the last known good SHA until transformers@master
+          is fixed
+
           git checkout e7e9261a2
+
           git rev-parse --short HEAD
+
           pip install .
 
+          '
+      - id: measurement-6
+        name: Record Measurement After Install transformers
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install transformers
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          pip install .[dev,autotuning]
+        run: 'pip install .[dev,autotuning]
+
           ds_report
 
+          '
+      - id: measurement-8
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment
-        run: |
+        run: 'pip list
+
+          '
+      - id: measurement-10
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
+      - name: HF transformers tests
+        run: 'unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
+
+          cd transformers
+
+          pip install .[testing]
+
+          # find reqs used in ds integration tests
+
+          find examples/pytorch -regextype posix-egrep -regex ''.*(language-modeling|question-answering|summarization|image-classification|text-classification|translation).*/requirements.txt''
+          -exec grep -v ''torch'' {} \; | xargs -I {} pip install --upgrade {}
+
+          # force protobuf version due to issues
+
+          pip install "protobuf<4.21.0"
+
           pip list
 
-      - name: HF transformers tests
-        run: |
-          unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
-          cd transformers
-          pip install .[testing]
-          # find reqs used in ds integration tests
-          find examples/pytorch -regextype posix-egrep -regex '.*(language-modeling|question-answering|summarization|image-classification|text-classification|translation).*/requirements.txt' -exec grep -v 'torch' {} \; | xargs -I {} pip install --upgrade {}
-          # force protobuf version due to issues
-          pip install "protobuf<4.21.0"
-          pip list
           WANDB_DISABLED=true RUN_SLOW=1 pytest $PYTEST_OPTS tests/deepspeed
+
+          '
+      - id: measurement-12
+        name: Record Measurement After HF transformers tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: HF transformers tests
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

@@ -1,51 +1,107 @@
 name: Build and publish DeepSpeed release
-
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
 
 jobs:
   deploy:
-    runs-on: ubuntu-24.04
     environment: release-env
-
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: "master"
-    - id: setup-venv
-      uses: ./.github/workflows/setup-venv
-    - name: Get release version from tag
-      run: |
-        echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
-    - name: Check release version
-      run: |
-        pip install packaging
-        python release/check_release_version.py --release_version ${{ env.RELEASE_VERSION }}
-    - name: Build DeepSpeed
-      run: |
-        pip install setuptools
-        DS_BUILD_STRING=" " python setup.py sdist
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-        repository-url: https://upload.pypi.org/legacy/
-    - name: Bump version
-      run: |
-        python release/bump_patch_version.py --current_version ${{ env.RELEASE_VERSION }}
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v6
-      with:
-        token: ${{ secrets.GH_PAT }}
-        add-paths: |
-          version.txt
-        body: |
-          **Auto-generated PR to update version.txt after a DeepSpeed release**
-          Released version - ${{ env.RELEASE_VERSION }}
-          Author           - @${{ github.actor }}
-        branch: AutoPR/${{ env.RELEASE_VERSION }}
-        assignees: ${{ github.actor }}
-        title: "Update version.txt after ${{ env.RELEASE_VERSION }} release"
-        author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - id: setup-venv
+        uses: ./.github/workflows/setup-venv
+      - name: Get release version from tag
+        run: 'echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+          '
+      - id: measurement-4
+        name: Record Measurement After Get release version from tag
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Get release version from tag
+          task: get-measurement
+      - name: Check release version
+        run: 'pip install packaging
+
+          python release/check_release_version.py --release_version ${{ env.RELEASE_VERSION
+          }}
+
+          '
+      - id: measurement-6
+        name: Record Measurement After Check release version
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Check release version
+          task: get-measurement
+      - name: Build DeepSpeed
+        run: 'pip install setuptools
+
+          DS_BUILD_STRING=" " python setup.py sdist
+
+          '
+      - id: measurement-8
+        name: Record Measurement After Build DeepSpeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Build DeepSpeed
+          task: get-measurement
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://upload.pypi.org/legacy/
+      - name: Bump version
+        run: 'python release/bump_patch_version.py --current_version ${{ env.RELEASE_VERSION
+          }}
+
+          '
+      - id: measurement-11
+        name: Record Measurement After Bump version
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Bump version
+          task: get-measurement
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          add-paths: 'version.txt
+
+            '
+          assignees: ${{ github.actor }}
+          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+          body: '**Auto-generated PR to update version.txt after a DeepSpeed release**
+
+            Released version - ${{ env.RELEASE_VERSION }}
+
+            Author           - @${{ github.actor }}
+
+            '
+          branch: AutoPR/${{ env.RELEASE_VERSION }}
+          title: Update version.txt after ${{ env.RELEASE_VERSION }} release
+          token: ${{ secrets.GH_PAT }}
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

@@ -1,84 +1,144 @@
 name: amd-mi200
-
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/amd-mi200.yml'
-      - 'requirements/**'
-  schedule:
-    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-permissions:
-  contents: read
-  issues: write
-
+  group: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   amd-tests:
-    # The type of runner that the job will run on
-    runs-on: [self-hosted, amd, mi200]
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    runs-on:
+      - self-hosted
+      - amd
+      - mi200
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-
       - name: Install pytorch
-        run: |
-          pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url https://download.pytorch.org/whl/rocm6.0
-          python -c "import torch; print('torch:', torch.__version__, torch)"
-          python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+        run: 'pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url
+          https://download.pytorch.org/whl/rocm6.0
 
+          python -c "import torch; print(''torch:'', torch.__version__, torch)"
+
+          python -c "import torch; print(''CUDA available:'', torch.cuda.is_available())"
+
+          '
+      - id: measurement-4
+        name: Record Measurement After Install pytorch
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install pytorch
+          task: get-measurement
       - name: Install transformers
-        run: |
-          git clone https://github.com/huggingface/transformers
+        run: 'git clone https://github.com/huggingface/transformers
+
           cd transformers
-          # if needed switch to the last known good SHA until transformers@master is fixed
+
+          # if needed switch to the last known good SHA until transformers@master
+          is fixed
+
           # git checkout 1cc453d33
+
           git rev-parse --short HEAD
+
           pip install .
 
+          '
+      - id: measurement-6
+        name: Record Measurement After Install transformers
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install transformers
+          task: get-measurement
       - name: Install (ROCm) apex
-        run: |
-          git clone https://github.com/ROCmSoftwarePlatform/apex.git
-          CURRENT_VER=$(git rev-parse HEAD)
-          INSTALLED_VER=$(cat /blob/amd-apex/.venv_installed_version)
-          if [[ "$CURRENT_VER" != "$INSTALLED_VER" ]]; then
-            pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings="--global-option=--cpp_ext" --config-settings="--global-option=--cuda_ext" --target=/blob/amd-apex/ --upgrade .
-            git rev-parse HEAD > /blob/amd-apex/.venv_installed_version
-          fi
-          echo PYTHONPATH=$PYTHONPATH:/blob/amd-apex/ >> $GITHUB_ENV
-      # Runs a set of commands using the runners shell
+        run: "git clone https://github.com/ROCmSoftwarePlatform/apex.git\nCURRENT_VER=$(git\
+          \ rev-parse HEAD)\nINSTALLED_VER=$(cat /blob/amd-apex/.venv_installed_version)\n\
+          if [[ \"$CURRENT_VER\" != \"$INSTALLED_VER\" ]]; then\n  pip install -v\
+          \ --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings=\"\
+          --global-option=--cpp_ext\" --config-settings=\"--global-option=--cuda_ext\"\
+          \ --target=/blob/amd-apex/ --upgrade .\n  git rev-parse HEAD > /blob/amd-apex/.venv_installed_version\n\
+          fi\necho PYTHONPATH=$PYTHONPATH:/blob/amd-apex/ >> $GITHUB_ENV\n"
+      - id: measurement-8
+        name: Record Measurement After Install (ROCm) apex
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install (ROCm) apex
+          task: get-measurement
       - name: Install deepspeed
-        run: |
-          pip install .[dev,1bit,autotuning]
+        run: 'pip install .[dev,1bit,autotuning]
+
           #python -c "from deepspeed.env_report import cli_main; cli_main()"
+
           ds_report
 
+          '
+      - id: measurement-10
+        name: Record Measurement After Install deepspeed
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Install deepspeed
+          task: get-measurement
       - name: Python environment
-        run: |
-          pip list
+        run: 'pip list
 
-      # Runs a set of commands using the runners shell
+          '
+      - id: measurement-12
+        name: Record Measurement After Python environment
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Python environment
+          task: get-measurement
       - name: Unit tests
-        run: |
-          unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
-          cd tests
-          pytest $PYTEST_OPTS -n 4 --verbose unit/
-          pytest $PYTEST_OPTS -m 'sequential' unit/
+        run: 'unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
 
-      - name: Open GitHub issue if nightly CI fails
-        if: ${{ failure() && (github.event_name == 'schedule') }}
-        uses: JasonEtco/create-an-issue@v2
-        env:
+          cd tests
+
+          pytest $PYTEST_OPTS -n 4 --verbose unit/
+
+          pytest $PYTEST_OPTS -m ''sequential'' unit/
+
+          '
+      - id: measurement-14
+        name: Record Measurement After Unit tests
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          label: Unit tests
+          task: get-measurement
+      - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ failure() && (github.event_name == 'schedule') }}
+        name: Open GitHub issue if nightly CI fails
+        uses: JasonEtco/create-an-issue@v2
         with:
           filename: .github/ISSUE_TEMPLATE/ci_failure_report.md
           update_existing: true
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@v4
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
+permissions:
+  contents: read
+  issues: write
