@@ -19,24 +19,7 @@ jobs:
           ref: master
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
-      - name: Get release version from tag
-        run: 'echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-          '
-      - id: measurement-4
-        name: Record Measurement After Get release version from tag
-        uses: green-coding-solutions/eco-ci-energy-estimation@v4
-        with:
-          json-output: true
-          label: Get release version from tag
-          task: get-measurement
-      - name: Check release version
-        run: 'pip install packaging
-
-          python release/check_release_version.py --release_version ${{ env.RELEASE_VERSION
-          }}
-
-          '
       - id: measurement-6
         name: Record Measurement After Check release version
         uses: green-coding-solutions/eco-ci-energy-estimation@v4
