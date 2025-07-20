@@ -24,7 +24,8 @@ jobs:
       - id: setup-venv
         uses: ./.github/workflows/setup-venv
       - name: Install pytorch
-        run: 'pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url
+        run:
+          'pip install -U --cache-dir $TORCH_CACHE torch torchvision --index-url
           https://download.pytorch.org/whl/cu124
 
           python -c "import torch; print(''torch:'', torch.__version__, torch)"
@@ -40,13 +41,13 @@ jobs:
           label: Install pytorch
           task: get-measurement
       - name: Install deepspeed
-        run: 'pip install transformers
+        run: "pip install transformers
 
           pip install .[dev]
 
           ds_report
 
-          '
+          "
       - id: measurement-6
         name: Record Measurement After Install deepspeed
         uses: green-coding-solutions/eco-ci-energy-estimation@v4
@@ -55,7 +56,8 @@ jobs:
           label: Install deepspeed
           task: get-measurement
       - name: Install deepspeed-chat
-        run: "BRANCH=\"master\"\nif [[ ! -z \"${{ github.event.inputs.dse_branch }}\"\
+        run:
+          "BRANCH=\"master\"\nif [[ ! -z \"${{ github.event.inputs.dse_branch }}\"\
           \ ]]; then\n    BRANCH=\"${{ github.event.inputs.dse_branch }}\"\nfi\necho\
           \ \"DeepSpeedExamples Branch: $BRANCH\"\ngit clone -b $BRANCH https://github.com/deepspeedai/DeepSpeedExamples.git\n\
           cd DeepSpeedExamples/applications/DeepSpeed-Chat\npip install -r requirements.txt\n\
@@ -68,9 +70,9 @@ jobs:
           label: Install deepspeed-chat
           task: get-measurement
       - name: Python environment
-        run: 'pip list
+        run: "pip list
 
-          '
+          "
       - id: measurement-10
         name: Record Measurement After Python environment
         uses: green-coding-solutions/eco-ci-energy-estimation@v4
@@ -79,7 +81,7 @@ jobs:
           label: Python environment
           task: get-measurement
       - name: DS-Chat unit tests
-        run: 'cd DeepSpeedExamples/applications/DeepSpeed-Chat
+        run: "cd DeepSpeedExamples/applications/DeepSpeed-Chat
 
           unset TORCH_CUDA_ARCH_LIST # only jit compile for current arch
 
@@ -89,7 +91,7 @@ jobs:
 
           pytest $PYTEST_OPTS ./
 
-          '
+          "
       - id: measurement-12
         name: Record Measurement After DS-Chat unit tests
         uses: green-coding-solutions/eco-ci-energy-estimation@v4
